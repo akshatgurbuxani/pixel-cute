@@ -1,4 +1,9 @@
-export const HER_NAME = 'Baby'
+/** Fixed copy per screen — word "baby" appears only in `introSub`. */
+export const APP_COPY = {
+  headerTitle: 'for my sweetheart',
+  introSub: 'dodge bombs · made for baby ♡',
+  pageTitle: 'Pixel Hugs for You ♡',
+} as const
 
 export type SpriteId = 'bunny' | 'cat' | 'heart' | 'star' | 'flower' | 'cloud' | 'mushroom' | 'butterfly' | 'bear' | 'bomb'
 
@@ -195,7 +200,7 @@ export const PALETTE: Record<string, string> = {
 export const SPRITE_IDS = Object.keys(SPRITES) as SpriteId[]
 
 export const MESSAGES = [
-  `hi ${HER_NAME} ♡`,
+  'hi my love ♡',
   'you are so cute',
   'sending pixel hugs',
   'the bunnies love you',

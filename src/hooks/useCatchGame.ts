@@ -15,7 +15,7 @@ export interface FallingItem {
   wobble: number
 }
 
-export const LOVE_GOAL = 5
+export const LOVE_GOAL = 1
 
 const LOVE_SPRITES: SpriteId[] = ['heart', 'flower', 'butterfly', 'star']
 
@@ -33,6 +33,7 @@ interface GameCallbacks {
   onCatchLove: () => void
   onBomb: () => void
   onVictory: () => void
+  onMove?: (deltaX: number) => void
 }
 
 export function useCatchGame(callbacks: GameCallbacks) {
@@ -41,6 +42,12 @@ export function useCatchGame(callbacks: GameCallbacks) {
   const [playerX, setPlayerX] = useState(50)
   const [items, setItems] = useState<FallingItem[]>([])
   const [bombHit, setBombHit] = useState<{ x: number; y: number } | null>(null)
+  const [deathLine, setDeathLine] = useState<DeathLine>(DEATH_LINES[0])
+  const [deathSeq, setDeathSeq] = useState(0)
+  const [winLine, setWinLine] = useState<WinLine>(WIN_LINES[0])
+  const [winSeq, setWinSeq] = useState(0)
+  const lastDeathIndexRef = useRef(-1)
+  const lastWinIndexRef = useRef(-1)
 
   const refs = useRef({
     phase: 'intro' as GamePhase,
@@ -56,6 +63,60 @@ export function useCatchGame(callbacks: GameCallbacks) {
 
   refs.current.callbacks = callbacks
   refs.current.loveGoal = LOVE_GOAL
+
+  const rollDeathLine = useCallback((): DeathLine => {
+    const count = DEATH_LINES.length
+    if (count <= 1) return DEATH_LINES[0]
+    let idx = Math.floor(Math.random() * count)
+    while (idx === lastDeathIndexRef.current) {
+      idx = Math.floor(Math.random() * count)
+    }
+    lastDeathIndexRef.current = idx
+    return DEATH_LINES[idx]
+  }, [])
+
+  const rollWinLine = useCallback((): WinLine => {
+    const count = WIN_LINES.length
+    if (count <= 1) return WIN_LINES[0]
+    let idx = Math.floor(Math.random() * count)
+    while (idx === lastWinIndexRef.current) {
+      idx = Math.floor(Math.random() * count)
+    }
+    lastWinIndexRef.current = idx
+    return WIN_LINES[idx]
+  }, [])
+
+  const triggerBombDeath = useCallback(
+    (x: number, y: number) => {
+      const r = refs.current
+      if (r.phase !== 'playing') return
+
+      const line = rollDeathLine()
+      r.phase = 'bombHit'
+      r.callbacks.onBomb()
+
+      setBombHit({ x, y })
+      setDeathLine(line)
+      setDeathSeq((n) => n + 1)
+      setPhase('bombHit')
+    },
+    [rollDeathLine],
+  )
+
+  const triggerVictory = useCallback(() => {
+    const r = refs.current
+    if (r.phase !== 'playing') return
+
+    const line = rollWinLine()
+    r.phase = 'victoryCelebration'
+    r.items = []
+    r.callbacks.onVictory()
+
+    setItems([])
+    setWinLine(line)
+    setWinSeq((n) => n + 1)
+    setPhase('victoryCelebration')
+  }, [rollWinLine])
 
   const pinkIntensity = Math.min(loveCount / LOVE_GOAL, 1)
 
@@ -75,8 +136,12 @@ export function useCatchGame(callbacks: GameCallbacks) {
   }, [])
 
   const movePlayer = useCallback((x: number) => {
-    refs.current.playerX = Math.max(8, Math.min(92, x))
-    setPlayerX(refs.current.playerX)
+    const prev = refs.current.playerX
+    const next = Math.max(8, Math.min(92, x))
+    const delta = next - prev
+    refs.current.playerX = next
+    setPlayerX(next)
+    if (Math.abs(delta) > 0.01) refs.current.callbacks.onMove?.(delta)
   }, [])
 
   useEffect(() => {
@@ -113,10 +178,7 @@ export function useCatchGame(callbacks: GameCallbacks) {
           if (item.y >= catchY && item.y < catchY + 6) {
             if (Math.abs(item.x - r.playerX) < catchW) {
               if (item.kind === 'bomb') {
-                r.phase = 'bombHit'
-                r.callbacks.onBomb()
-                setBombHit({ x: item.x, y: item.y })
-                setPhase('bombHit')
+                triggerBombDeath(item.x, item.y)
                 return false
               }
 
@@ -125,11 +187,7 @@ export function useCatchGame(callbacks: GameCallbacks) {
               setLoveCount(r.loveCount)
 
               if (r.loveCount >= r.loveGoal) {
-                r.phase = 'victoryCelebration'
-                r.items = []
-                r.callbacks.onVictory()
-                setItems([])
-                setPhase('victoryCelebration')
+                triggerVictory()
               }
               return false
             }
@@ -146,7 +204,7 @@ export function useCatchGame(callbacks: GameCallbacks) {
 
     refs.current.raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(refs.current.raf)
-  }, [])
+  }, [triggerBombDeath, triggerVictory])
 
   useEffect(() => {
     if (phase !== 'bombHit') return
@@ -161,12 +219,8 @@ export function useCatchGame(callbacks: GameCallbacks) {
   useEffect(() => {
     if (phase !== 'playing' || loveCount < LOVE_GOAL) return
     if (refs.current.phase !== 'playing') return
-    refs.current.phase = 'victoryCelebration'
-    refs.current.items = []
-    refs.current.callbacks.onVictory()
-    setItems([])
-    setPhase('victoryCelebration')
-  }, [phase, loveCount])
+    triggerVictory()
+  }, [phase, loveCount, triggerVictory])
 
   useEffect(() => {
     if (phase !== 'victoryCelebration') return
@@ -184,6 +238,10 @@ export function useCatchGame(callbacks: GameCallbacks) {
     playerX,
     items,
     bombHit,
+    deathLine,
+    deathSeq,
+    winLine,
+    winSeq,
     pinkIntensity,
     loveGoal: LOVE_GOAL,
     startGame,
@@ -198,3 +256,29 @@ export const GAME_TIPS = [
   'fill the meter to win',
   'misses are ok!',
 ]
+
+export const DEATH_LINES = [
+  { bubble: 'oops!', title: 'that was a bomb', sub: 'catch love next time ♡' },
+  { bubble: 'oh no!!', title: 'oh no you died', sub: 'try again cutie ♡' },
+  { bubble: 'nooo!!', title: 'boom goes the bunny', sub: 'dodge the bombs next time ♡' },
+  { bubble: 'yikes!', title: 'not the bomb!!', sub: 'catch love next time ♡' },
+  { bubble: 'uh oh!', title: 'wrong catch buddy', sub: 'you got this ♡' },
+  { bubble: 'boom!', title: 'so close... not', sub: 'one more try ♡' },
+  { bubble: 'eek!', title: 'that was explosive', sub: 'catch love next time ♡' },
+  { bubble: '💣', title: 'bomb got you', sub: 'dodge next time ♡' },
+] as const
+
+export type DeathLine = (typeof DEATH_LINES)[number]
+
+export const WIN_LINES = [
+  { title: 'hugs received ♡', sub: 'yes queen you won!' },
+  { title: 'you did it!!', sub: 'absolute legend ♡' },
+  { title: 'max love!!', sub: 'my sweetheart wins again' },
+  { title: 'victory dance!!', sub: 'the bunny is so proud' },
+  { title: 'love meter full ♡', sub: 'queen behavior honestly' },
+  { title: 'woohoo!!', sub: 'catch master unlocked' },
+  { title: 'so many hugs ♡', sub: "you're unstoppable" },
+  { title: 'winner winner ♡', sub: 'cutest win ever' },
+] as const
+
+export type WinLine = (typeof WIN_LINES)[number]

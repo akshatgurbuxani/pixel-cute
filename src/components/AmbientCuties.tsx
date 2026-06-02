@@ -88,7 +88,12 @@ export function AmbientCuties({ mood, count = 26, seed = 1 }: Props) {
                   rotate: [0, c.spin, -c.spin * 0.6, c.spin * 0.85, -c.spin * 0.4, 0],
                   opacity: 1,
                 }
-              : { x: 0, y: 0, rotate: 0, opacity: c.opacity }
+              : {
+                  x: [0, c.orbitX * 0.18, -c.orbitX * 0.12, c.orbitX * 0.15, 0],
+                  y: [0, -c.orbitY * 0.14, c.orbitY * 0.1, -c.orbitY * 0.12, 0],
+                  rotate: [0, c.spin * 0.15, -c.spin * 0.1, c.spin * 0.12, 0],
+                  opacity: c.opacity,
+                }
           }
           transition={
             awake
@@ -98,7 +103,12 @@ export function AmbientCuties({ mood, count = 26, seed = 1 }: Props) {
                   rotate: { duration: c.duration, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
                   opacity: { duration: 0.35, ease: 'easeOut' },
                 }
-              : { duration: 0.45, ease: 'easeOut' }
+              : {
+                  x: { duration: c.duration * 1.6, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
+                  y: { duration: c.duration * 1.6, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
+                  rotate: { duration: c.duration * 1.6, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
+                  opacity: { duration: 0.45, ease: 'easeOut' },
+                }
           }
         >
           <motion.div
