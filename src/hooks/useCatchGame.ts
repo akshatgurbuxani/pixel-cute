@@ -15,7 +15,7 @@ export interface FallingItem {
   wobble: number
 }
 
-export const LOVE_GOAL = 1
+export const LOVE_GOAL = 10
 
 const LOVE_SPRITES: SpriteId[] = ['heart', 'flower', 'butterfly', 'star']
 
