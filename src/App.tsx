@@ -25,10 +25,8 @@ export default function App() {
   const isVictoryMoment = isVictoryCelebration || game.phase === 'victory'
   const isDeathMoment = game.phase === 'bombHit' || game.phase === 'gameOver'
   const cutieMood = isVictoryMoment ? 'awake' : 'idle'
-  const showCuties =
-    game.phase === 'intro' ||
-    game.phase === 'playing' ||
-    isVictoryMoment
+  // Keep mounted across intro↔playing so animals don't pop/flicker out.
+  const showCuties = !isDeathMoment
 
   useEffect(() => {
     if (game.phase === 'victoryCelebration') fireVictoryConfetti()
@@ -53,16 +51,29 @@ export default function App() {
     game.startGame()
   }, [prime, game.startGame])
 
+  const handlePrime = useCallback(() => {
+    void prime()
+  }, [prime])
+
   return (
-    <div className={`app ${isVictoryMoment ? 'is-victory-blush' : ''} ${isVictoryCelebration ? 'is-victory-celebration' : ''} ${isDeathMoment ? 'is-death-moment' : ''}`}>
+    <div
+      className={[
+        'app',
+        isVictoryMoment ? 'is-victory-blush' : '',
+        isVictoryCelebration ? 'is-victory-celebration' : '',
+        isDeathMoment ? 'is-death-moment' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <PixelBackground />
       {showCuties && <AmbientCuties mood={cutieMood} count={28} seed={5} />}
 
       <header className="header header-cosmic">
         <div className="header-stars" aria-hidden>
-          <span className="header-star hs1">✦</span>
+          <span className="header-star hs1">♡</span>
           <span className="header-star hs2">♡</span>
-          <span className="header-star hs3">✧</span>
+          <span className="header-star hs3">♥</span>
         </div>
         <p className="header-tag">♡ catch love · dodge bombs ♡</p>
         <h1 className="header-title">{APP_COPY.headerTitle}</h1>
@@ -75,6 +86,8 @@ export default function App() {
         pinkIntensity={game.pinkIntensity}
         playerX={game.playerX}
         items={game.items}
+        itemsRef={game.itemsRef}
+        playerXRef={game.playerXRef}
         bombHit={game.bombHit}
         deathLine={game.deathLine}
         deathSeq={game.deathSeq}
@@ -82,7 +95,7 @@ export default function App() {
         winSeq={game.winSeq}
         onStart={handleStart}
         onMove={game.movePlayer}
-        onPrime={() => { void prime() }}
+        onPrime={handlePrime}
         onDragEnd={stopSlide}
         className={isVictoryMoment ? 'is-victory-front' : ''}
       />

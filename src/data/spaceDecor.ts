@@ -32,7 +32,7 @@ export function buildStars(count: number, salt: number, topMax = 100): StarDef[]
 }
 
 export function buildSparkles(count: number, salt: number, topMax = 100): SparkleDef[] {
-  const chars = ['✦', '♡', '·', '✧', '♡'] as const
+  const chars = ['♡', '♡', '♥', '♡', '♥'] as const
   return Array.from({ length: count }, (_, i) => ({
     id: i,
     left: seeded(i, salt + 3) * 94 + 3,
@@ -42,7 +42,13 @@ export function buildSparkles(count: number, salt: number, topMax = 100): Sparkl
   }))
 }
 
-export const BG_STARS = buildStars(48, 1, 55)
-export const BG_SPARKLES = buildSparkles(16, 2, 88)
+export const BG_STARS = [
+  ...buildStars(40, 1, 52),
+  ...buildStars(36, 21, 48).map((s, i) => ({ ...s, id: 100 + i, top: 52 + s.top })),
+]
+export const BG_SPARKLES = [
+  ...buildSparkles(12, 2, 50),
+  ...buildSparkles(14, 31, 48).map((s, i) => ({ ...s, id: 100 + i, top: 50 + s.top })),
+]
 export const ARENA_STARS = buildStars(22, 5, 72)
 export const CARD_SPARKLES = buildSparkles(8, 9, 100)

@@ -2,10 +2,10 @@ import { motion } from 'framer-motion'
 import { PixelSprite } from './PixelSprite'
 
 const SCENE_CHARS = [
-  { id: 'bunny', x: '18%', delay: 0, bounce: 12 },
+  { id: 'bunny' as const, x: '18%', delay: 0, bounce: 12 },
   { id: 'cat' as const, x: '38%', delay: 0.4, bounce: 10 },
   { id: 'bear' as const, x: '58%', delay: 0.8, bounce: 14 },
-  { id: 'mushroom' as const, x: '78%', delay: 0.2, bounce: 6 },
+  { id: 'chick' as const, x: '78%', delay: 0.2, bounce: 6 },
 ]
 
 export function PixelGround() {
@@ -50,7 +50,7 @@ export function PixelScene() {
               ['--bounce' as string]: `-${ch.bounce}px`,
             }}
           >
-            <PixelSprite id={ch.id as 'bunny' | 'cat' | 'bear' | 'mushroom'} scale={5} />
+            <PixelSprite id={ch.id} scale={5} />
           </div>
         ))}
       </div>

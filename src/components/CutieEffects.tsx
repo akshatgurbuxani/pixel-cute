@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { PixelSprite } from './PixelSprite'
-import { SPRITE_IDS, type SpriteId } from '../data/sprites'
+import { ANIMAL_SPRITES, type SpriteId } from '../data/sprites'
 
 export interface SpawnedCutie {
   id: number
@@ -72,5 +72,5 @@ export function useRotatingMessage(messages: string[], interval = 3500) {
 }
 
 export function randomSprite(): SpriteId {
-  return SPRITE_IDS[Math.floor(Math.random() * SPRITE_IDS.length)]
+  return ANIMAL_SPRITES[Math.floor(Math.random() * ANIMAL_SPRITES.length)]
 }

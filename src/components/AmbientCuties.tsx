@@ -1,9 +1,7 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { PixelSprite } from './PixelSprite'
-import { SPRITE_IDS, type SpriteId } from '../data/sprites'
-
-const CUTIE_SPRITES = SPRITE_IDS.filter((id) => id !== 'bomb')
+import { ANIMAL_SPRITES, type SpriteId } from '../data/sprites'
 
 function rand(seed: number) {
   const x = Math.sin(seed * 43758.5453) * 10000
@@ -33,7 +31,6 @@ interface Props {
   seed?: number
 }
 
-/** Spread cuties across the full viewport — edges included, no clustering */
 function buildCuties(count: number, seed: number): CutieDef[] {
   const cols = Math.ceil(Math.sqrt(count * 1.55))
   const rows = Math.ceil(count / cols)
@@ -48,15 +45,17 @@ function buildCuties(count: number, seed: number): CutieDef[] {
 
     const gx = cols <= 1 ? 0.5 : col / (cols - 1)
     const gy = rows <= 1 ? 0.5 : row / (rows - 1)
+    const yBase = gy * 94 + 3 + (r2 - 0.5) * 20
+    const y = yBase < 45 && r3 > 0.55 ? yBase + 38 + r * 20 : yBase
 
     items.push({
       id: `cutie-${seed}-${i}`,
-      sprite: CUTIE_SPRITES[Math.floor(r * CUTIE_SPRITES.length)],
+      sprite: ANIMAL_SPRITES[Math.floor(r * ANIMAL_SPRITES.length)],
       x: gx * 112 - 6 + (r - 0.5) * 22,
-      y: gy * 94 + 3 + (r2 - 0.5) * 20,
+      y: Math.min(96, Math.max(4, y)),
       idleScale: 2 + Math.floor(r2 * 2),
       heroScale: 5 + Math.floor(r3 * 2),
-      opacity: 0.32 + r2 * 0.22,
+      opacity: 0.62 + r2 * 0.28,
       orbitX: 22 + r * 38,
       orbitY: 16 + r2 * 28,
       spin: (r > 0.5 ? 1 : -1) * (8 + r3 * 14),
@@ -68,66 +67,67 @@ function buildCuties(count: number, seed: number): CutieDef[] {
   return items
 }
 
-export function AmbientCuties({ mood, count = 26, seed = 1 }: Props) {
+/**
+ * Idle = CSS drift (composited, no JS loops fighting the game).
+ * Awake = Framer party only on victory.
+ * memo'd so love-count ticks never rebuild 32 sprites.
+ */
+export const AmbientCuties = memo(function AmbientCuties({
+  mood,
+  count = 28,
+  seed = 1,
+}: Props) {
   const cuties = useMemo(() => buildCuties(count, seed), [count, seed])
   const awake = mood === 'awake'
 
   return (
     <div className={`ambient-cuties ${awake ? 'is-awake' : ''}`} aria-hidden>
-      {cuties.map((c) => (
-        <motion.div
-          key={c.id}
-          className={`ambient-cutie ${awake ? 'cutie-hero' : 'cutie-idle'}`}
-          style={{ left: `${c.x}%`, top: `${c.y}%` }}
-          initial={false}
-          animate={
-            awake
-              ? {
-                  x: [0, c.orbitX, -c.orbitX * 0.55, c.orbitX * 0.75, -c.orbitX * 0.35, 0],
-                  y: [0, -c.orbitY, c.orbitY * 0.45, -c.orbitY * 0.65, c.orbitY * 0.25, 0],
-                  rotate: [0, c.spin, -c.spin * 0.6, c.spin * 0.85, -c.spin * 0.4, 0],
-                  opacity: 1,
-                }
-              : {
-                  x: [0, c.orbitX * 0.18, -c.orbitX * 0.12, c.orbitX * 0.15, 0],
-                  y: [0, -c.orbitY * 0.14, c.orbitY * 0.1, -c.orbitY * 0.12, 0],
-                  rotate: [0, c.spin * 0.15, -c.spin * 0.1, c.spin * 0.12, 0],
-                  opacity: c.opacity,
-                }
-          }
-          transition={
-            awake
-              ? {
-                  x: { duration: c.duration, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
-                  y: { duration: c.duration, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
-                  rotate: { duration: c.duration, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
-                  opacity: { duration: 0.35, ease: 'easeOut' },
-                }
-              : {
-                  x: { duration: c.duration * 1.6, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
-                  y: { duration: c.duration * 1.6, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
-                  rotate: { duration: c.duration * 1.6, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
-                  opacity: { duration: 0.45, ease: 'easeOut' },
-                }
-          }
-        >
+      {cuties.map((c) =>
+        awake ? (
           <motion.div
-            className="cutie-sprite-wrap"
-            animate={
-              awake
-                ? { scale: c.heroScale / c.idleScale }
-                : { scale: 1 }
-            }
-            transition={
-              awake
-                ? { type: 'spring', stiffness: 420, damping: 18, delay: c.delay * 0.5 }
-                : { duration: 0.35 }
-            }
+            key={c.id}
+            className="ambient-cutie cutie-hero"
+            style={{ left: `${c.x}%`, top: `${c.y}%` }}
+            initial={false}
+            animate={{
+              x: [0, c.orbitX, -c.orbitX * 0.55, c.orbitX * 0.75, -c.orbitX * 0.35, 0],
+              y: [0, -c.orbitY, c.orbitY * 0.45, -c.orbitY * 0.65, c.orbitY * 0.25, 0],
+              rotate: [0, c.spin, -c.spin * 0.6, c.spin * 0.85, -c.spin * 0.4, 0],
+              opacity: 1,
+            }}
+            transition={{
+              x: { duration: c.duration, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
+              y: { duration: c.duration, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
+              rotate: { duration: c.duration, repeat: Infinity, ease: 'easeInOut', delay: c.delay },
+              opacity: { duration: 0.35, ease: 'easeOut' },
+            }}
+          >
+            <div
+              className="cutie-sprite-wrap"
+              style={{ transform: `scale(${c.heroScale / c.idleScale})` }}
+            >
+              <PixelSprite id={c.sprite} scale={c.idleScale} />
+            </div>
+          </motion.div>
+        ) : (
+          <div
+            key={c.id}
+            className="ambient-cutie cutie-idle"
+            style={{
+              left: `${c.x}%`,
+              top: `${c.y}%`,
+              opacity: c.opacity,
+              animationDelay: `${c.delay}s`,
+              animationDuration: `${c.duration * 1.8}s`,
+              ['--cutie-ox' as string]: `${c.orbitX * 0.16}px`,
+              ['--cutie-oy' as string]: `${c.orbitY * 0.12}px`,
+              ['--cutie-spin' as string]: `${c.spin * 0.12}deg`,
+            }}
           >
             <PixelSprite id={c.sprite} scale={c.idleScale} />
-          </motion.div>
-        </motion.div>
-      ))}
+          </div>
+        ),
+      )}
     </div>
   )
-}
+})

@@ -1,9 +1,7 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { PixelSprite } from './PixelSprite'
-import { SPRITE_IDS, type SpriteId } from '../data/sprites'
-
-const PARTY_SPRITES = SPRITE_IDS.filter((id) => id !== 'bomb')
+import { ANIMAL_SPRITES, type SpriteId } from '../data/sprites'
 
 function rand(seed: number) {
   const x = Math.sin(seed * 43758.5453) * 10000
@@ -34,7 +32,7 @@ export function DriftingCuties({ count, seed, party = false }: Props) {
       const r = rand(seed + i * 17)
       items.push({
         id: `drift-${seed}-${i}`,
-        sprite: (party ? PARTY_SPRITES : SPRITE_IDS)[Math.floor(r * (party ? PARTY_SPRITES.length : SPRITE_IDS.length))],
+        sprite: ANIMAL_SPRITES[Math.floor(r * ANIMAL_SPRITES.length)],
         x: rand(seed + i) * 90 + 5,
         y: rand(seed + i + 50) * 70 + 5,
         scale: 3 + Math.floor(r * 3),

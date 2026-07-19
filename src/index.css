@@ -266,8 +266,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 @keyframes victory-sky-pulse {
-  0%, 100% { filter: brightness(1) saturate(1.1); }
-  50% { filter: brightness(1.12) saturate(1.35); }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.92; }
 }
 
 .app.is-victory-blush .layer-nebula-a {
@@ -331,6 +331,28 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: absolute;
   transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+.ambient-cutie.cutie-idle {
+  animation-name: cutie-idle-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+@keyframes cutie-idle-drift {
+  0%, 100% {
+    transform: translate(-50%, -50%) translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(-50%, -50%) translate(var(--cutie-ox), calc(var(--cutie-oy) * -1)) rotate(var(--cutie-spin));
+  }
+  50% {
+    transform: translate(-50%, -50%) translate(calc(var(--cutie-ox) * -0.67), var(--cutie-oy)) rotate(calc(var(--cutie-spin) * -0.67));
+  }
+  75% {
+    transform: translate(-50%, -50%) translate(calc(var(--cutie-ox) * 0.83), calc(var(--cutie-oy) * -0.86)) rotate(calc(var(--cutie-spin) * 0.8));
+  }
 }
 
 .cutie-idle {
@@ -650,7 +672,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .app.is-victory-blush .gradient-base, .app.is-victory-celebration .gradient-base,
   .catch-arena.is-victory-celebration, .win-card, .intro-card,
   .arena-star, .arena-cosmos-band, .card-sparkle, .header-star, .arena-float-star,
-  .catch-arena-shell, .arena-corner {
+  .catch-arena-shell, .arena-corner, .ambient-cutie.cutie-idle {
     animation: none;
   }
 }
@@ -712,9 +734,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .catch-arena-shell {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 360px;
-  max-height: 58dvh;
+  max-height: 72dvh;
   width: 100%;
   padding: 6px;
   border-radius: 2px;
@@ -727,7 +751,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 @keyframes arena-shell-glow {
   0%, 100% { box-shadow: 0 0 28px rgba(255, 110, 180, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.08); }
-  50% { box-shadow: 0 0 42px rgba(120, 180, 255, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.12); }
+  50% { box-shadow: 0 0 34px rgba(120, 180, 255, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.1); }
 }
 
 .arena-frame-glow {
@@ -759,8 +783,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .catch-arena {
   position: relative;
+  flex: 1;
   width: 100%;
-  height: 100%;
   min-height: 348px;
   border: 4px solid rgba(255, 110, 180, 0.9);
   box-shadow:
@@ -911,9 +935,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   pointer-events: none;
 }
 
+.arena-float-star.css-float {
+  animation: arena-twinkle 5s ease-in-out infinite;
+}
+
 .arena-float-star.s1 { top: 12%; left: 22%; }
-.arena-float-star.s2 { top: 20%; right: 18%; font-size: 0.7rem; }
-.arena-float-star.s3 { top: 8%; left: 58%; font-size: 0.65rem; }
+.arena-float-star.s2 { top: 20%; right: 18%; font-size: 0.7rem; animation-delay: 0.8s; animation-duration: 6.5s; }
+.arena-float-star.s3 { top: 8%; left: 58%; font-size: 0.65rem; animation-delay: 1.4s; animation-duration: 4.2s; }
+
+@keyframes arena-twinkle {
+  0%, 100% { opacity: 0.45; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-8px); }
+}
 
 .victory-bloom {
   position: absolute;
@@ -1258,6 +1291,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: rgba(255, 110, 180, 0.85);
   text-shadow: 0 0 10px rgba(255, 110, 180, 0.65);
   transform: translate(-50%, -50%);
+}
+
+.card-sparkle.css-heart {
+  animation: card-heart-float 4.5s ease-in-out infinite;
+}
+
+@keyframes card-heart-float {
+  0%, 100% { opacity: 0.35; transform: translate(-50%, -50%) scale(0.85); }
+  50% { opacity: 1; transform: translate(-50%, -50%) translateY(-10px) scale(1.1); }
 }
 
 .intro-card {

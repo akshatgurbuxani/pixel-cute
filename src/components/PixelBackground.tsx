@@ -1,6 +1,7 @@
+import { memo } from 'react'
 import { ARENA_STARS, BG_SPARKLES, BG_STARS } from '../data/spaceDecor'
 
-export function PixelBackground() {
+export const PixelBackground = memo(function PixelBackground() {
   return (
     <div className="pixel-bg" aria-hidden>
       <div className="gradient-base" />
@@ -53,10 +54,10 @@ export function PixelBackground() {
       <div className="scanlines" />
     </div>
   )
-}
+})
 
-/** Inner starfield for the game arena card */
-export function ArenaCosmos() {
+/** Inner starfield for the game arena — memo'd so item ticks don't rebuild it. */
+export const ArenaCosmos = memo(function ArenaCosmos() {
   return (
     <div className="arena-cosmos" aria-hidden>
       <div className="arena-cosmos-glow" />
@@ -78,4 +79,4 @@ export function ArenaCosmos() {
       ))}
     </div>
   )
-}
+})
