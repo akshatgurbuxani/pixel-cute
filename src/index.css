@@ -318,11 +318,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .ambient-cuties {
   position: fixed;
   inset: 0;
-  z-index: 11;
+  z-index: 1;
   pointer-events: none;
   overflow: visible;
 }
 
+/* Victory party can float in front; idle/play stays behind the arena */
 .ambient-cuties.is-awake {
   z-index: 25;
 }

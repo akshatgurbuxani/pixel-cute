@@ -67,7 +67,7 @@ export default function App() {
         .join(' ')}
     >
       <PixelBackground />
-      {showCuties && <AmbientCuties mood={cutieMood} count={28} seed={5} />}
+      {showCuties && <AmbientCuties mood={cutieMood} count={16} seed={5} />}
 
       <header className="header header-cosmic">
         <div className="header-stars" aria-hidden>
