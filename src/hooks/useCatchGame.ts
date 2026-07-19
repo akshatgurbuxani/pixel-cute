@@ -164,19 +164,19 @@ export function useCatchGame(callbacks: GameCallbacks) {
         let structureChanged = false
 
         r.spawnTimer += dt
-        // Slower spawn = fewer on-screen items (helps phones)
-        if (r.spawnTimer >= Math.max(48, 70 - r.loveCount * 0.55)) {
+        // Mobile-friendly: sparse spawns, hard cap on concurrent items
+        if (r.spawnTimer >= Math.max(64, 90 - r.loveCount * 0.4)) {
           r.spawnTimer = 0
-          if (r.items.length < 5) {
+          if (r.items.length < 3) {
             const { sprite, kind } = pickItem(r.loveCount)
             r.items.push({
               id: r.nextId++,
-              x: 12 + Math.random() * 76,
+              x: 16 + Math.random() * 68,
               y: -8,
               sprite,
               kind,
-              speed: 0.34 + Math.random() * 0.14,
-              wobble: (Math.random() - 0.5) * 0.2,
+              speed: 0.3 + Math.random() * 0.12,
+              wobble: (Math.random() - 0.5) * 0.15,
             })
             structureChanged = true
           }

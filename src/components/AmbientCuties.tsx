@@ -31,50 +31,58 @@ interface Props {
   seed?: number
 }
 
+/**
+ * Place cuties only in side/edge bands — never across the center play column
+ * so they can't clutter the arena on phones.
+ */
 function buildCuties(count: number, seed: number): CutieDef[] {
-  const cols = Math.ceil(Math.sqrt(count * 1.55))
-  const rows = Math.ceil(count / cols)
   const items: CutieDef[] = []
 
   for (let i = 0; i < count; i++) {
-    const col = i % cols
-    const row = Math.floor(i / cols)
     const r = rand(seed + i * 17)
     const r2 = rand(seed + i * 41)
     const r3 = rand(seed + i * 59)
 
-    const gx = cols <= 1 ? 0.5 : col / (cols - 1)
-    const gy = rows <= 1 ? 0.5 : row / (rows - 1)
-    const yBase = gy * 94 + 3 + (r2 - 0.5) * 20
-    const y = yBase < 45 && r3 > 0.55 ? yBase + 38 + r * 20 : yBase
+    // Alternate left strip / right strip / top band / bottom band
+    const band = i % 4
+    let x: number
+    let y: number
+    if (band === 0) {
+      x = 2 + r * 12
+      y = 8 + r2 * 84
+    } else if (band === 1) {
+      x = 86 + r * 12
+      y = 8 + r2 * 84
+    } else if (band === 2) {
+      x = 8 + r * 84
+      y = 2 + r2 * 10
+    } else {
+      x = 8 + r * 84
+      y = 88 + r2 * 10
+    }
 
     items.push({
       id: `cutie-${seed}-${i}`,
       sprite: ANIMAL_SPRITES[Math.floor(r * ANIMAL_SPRITES.length)],
-      x: gx * 112 - 6 + (r - 0.5) * 22,
-      y: Math.min(96, Math.max(4, y)),
+      x,
+      y,
       idleScale: 2 + Math.floor(r2 * 2),
       heroScale: 5 + Math.floor(r3 * 2),
-      opacity: 0.62 + r2 * 0.28,
-      orbitX: 22 + r * 38,
-      orbitY: 16 + r2 * 28,
-      spin: (r > 0.5 ? 1 : -1) * (8 + r3 * 14),
-      delay: i * 0.09 + r * 0.15,
-      duration: 2.2 + r2 * 1.8,
+      opacity: 0.45 + r2 * 0.25,
+      orbitX: 10 + r * 18,
+      orbitY: 8 + r2 * 14,
+      spin: (r > 0.5 ? 1 : -1) * (6 + r3 * 10),
+      delay: i * 0.1 + r * 0.2,
+      duration: 2.8 + r2 * 2,
     })
   }
 
   return items
 }
 
-/**
- * Idle = CSS drift (composited, no JS loops fighting the game).
- * Awake = Framer party only on victory.
- * memo'd so love-count ticks never rebuild 32 sprites.
- */
 export const AmbientCuties = memo(function AmbientCuties({
   mood,
-  count = 28,
+  count = 12,
   seed = 1,
 }: Props) {
   const cuties = useMemo(() => buildCuties(count, seed), [count, seed])

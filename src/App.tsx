@@ -25,8 +25,9 @@ export default function App() {
   const isVictoryMoment = isVictoryCelebration || game.phase === 'victory'
   const isDeathMoment = game.phase === 'bombHit' || game.phase === 'gameOver'
   const cutieMood = isVictoryMoment ? 'awake' : 'idle'
-  // Keep mounted across intro↔playing so animals don't pop/flicker out.
-  const showCuties = !isDeathMoment
+  // Hide ambient animals while playing — on phones they clutter the arena.
+  // Show on intro + victory only.
+  const showCuties = game.phase === 'intro' || isVictoryMoment
 
   useEffect(() => {
     if (game.phase === 'victoryCelebration') fireVictoryConfetti()
@@ -67,7 +68,7 @@ export default function App() {
         .join(' ')}
     >
       <PixelBackground />
-      {showCuties && <AmbientCuties mood={cutieMood} count={16} seed={5} />}
+      {showCuties && <AmbientCuties mood={cutieMood} count={12} seed={5} />}
 
       <header className="header header-cosmic">
         <div className="header-stars" aria-hidden>
