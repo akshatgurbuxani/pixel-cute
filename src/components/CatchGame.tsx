@@ -1,9 +1,9 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { PixelSprite } from './PixelSprite'
 import { PixelGround } from './PixelScene'
 import { NudgeButton, PixelButton } from './PixelButton'
-import { ArenaCosmos } from './PixelBackground'
+import { ArenaDecor } from './ArenaDecor'
 import { CardSparkles } from './CardSparkles'
 import { APP_COPY } from '../data/sprites'
 import { GAME_TIPS, type FallingItem, type GamePhase } from '../hooks/useCatchGame'
@@ -15,6 +15,8 @@ interface Props {
   pinkIntensity: number
   playerX: number
   items: FallingItem[]
+  itemsRef: React.MutableRefObject<FallingItem[]>
+  playerXRef: React.MutableRefObject<number>
   bombHit: { x: number; y: number } | null
   deathLine: { bubble: string; title: string; sub: string }
   deathSeq: number
@@ -56,6 +58,8 @@ export function CatchGame({
   pinkIntensity,
   playerX,
   items,
+  itemsRef,
+  playerXRef,
   bombHit,
   deathLine,
   deathSeq,
@@ -68,12 +72,41 @@ export function CatchGame({
   className = '',
 }: Props) {
   const arenaRef = useRef<HTMLDivElement>(null)
+  const playerElRef = useRef<HTMLDivElement>(null)
+  const itemElsRef = useRef(new Map<number, HTMLDivElement>())
   const dragPointerRef = useRef<number | null>(null)
   const isPlaying = phase === 'playing'
   const isBombMoment = phase === 'bombHit' || phase === 'gameOver'
   const isVictoryMoment = phase === 'victoryCelebration' || phase === 'victory'
   const isVictoryCelebration = phase === 'victoryCelebration'
   const lovePct = (loveCount / loveGoal) * 100
+
+  // Paint live positions without React re-renders (mobile killers).
+  useEffect(() => {
+    if (!isPlaying && phase !== 'intro' && !isBombMoment && !isVictoryMoment) return
+
+    let raf = 0
+    const sync = () => {
+      for (const item of itemsRef.current) {
+        const el = itemElsRef.current.get(item.id)
+        if (el) {
+          el.style.left = `${item.x}%`
+          el.style.top = `${item.y}%`
+        }
+      }
+      if (playerElRef.current) {
+        playerElRef.current.style.left = `${playerXRef.current}%`
+      }
+      raf = requestAnimationFrame(sync)
+    }
+    raf = requestAnimationFrame(sync)
+    return () => cancelAnimationFrame(raf)
+  }, [isPlaying, phase, isBombMoment, isVictoryMoment, itemsRef, playerXRef])
+
+  const setItemEl = useCallback((id: number, node: HTMLDivElement | null) => {
+    if (node) itemElsRef.current.set(id, node)
+    else itemElsRef.current.delete(id)
+  }, [])
 
   const pointerX = useCallback(
     (clientX: number) => {
@@ -120,9 +153,9 @@ export function CatchGame({
     (dir: -1 | 1) => {
       if (!isPlaying) return
       onPrime?.()
-      onMove(playerX + dir * 10)
+      onMove(playerXRef.current + dir * 10)
     },
-    [isPlaying, playerX, onMove, onPrime],
+    [isPlaying, playerXRef, onMove, onPrime],
   )
 
   const arenaClass = [
@@ -156,8 +189,8 @@ export function CatchGame({
 
       <div className="catch-arena-shell">
         <div className="arena-frame-glow" aria-hidden />
-        <div className="arena-corner arena-corner-tl" aria-hidden>✦</div>
-        <div className="arena-corner arena-corner-tr" aria-hidden>✦</div>
+        <div className="arena-corner arena-corner-tl" aria-hidden>♡</div>
+        <div className="arena-corner arena-corner-tr" aria-hidden>♡</div>
         <div className="arena-corner arena-corner-bl" aria-hidden>♡</div>
         <div className="arena-corner arena-corner-br" aria-hidden>♡</div>
 
@@ -170,7 +203,7 @@ export function CatchGame({
         onPointerCancel={endDrag}
         onLostPointerCapture={endDrag}
       >
-        <ArenaCosmos />
+        <ArenaDecor />
 
         <motion.div
           className="pink-wash"
@@ -235,48 +268,11 @@ export function CatchGame({
           )}
         </AnimatePresence>
 
-        <div className="arena-sky">
-          <motion.div
-            className="arena-cloud c1"
-            animate={{ x: [0, 18, 0], y: [0, -4, 0] }}
-            transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <PixelSprite id="cloud" scale={4} />
-          </motion.div>
-          <motion.div
-            className="arena-cloud c2"
-            animate={{ x: [0, -14, 0], y: [0, 3, 0] }}
-            transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <PixelSprite id="cloud" scale={3} />
-          </motion.div>
-          <motion.div
-            className="arena-float-star s1"
-            animate={{ y: [0, -10, 0], opacity: [0.5, 1, 0.5], rotate: [0, 180, 360] }}
-            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            ✦
-          </motion.div>
-          <motion.div
-            className="arena-float-star s2"
-            animate={{ y: [0, 8, 0], opacity: [0.4, 0.95, 0.4], rotate: [0, -120, -240] }}
-            transition={{ duration: 6.5, repeat: Infinity, ease: 'easeInOut', delay: 0.8 }}
-          >
-            ♡
-          </motion.div>
-          <motion.div
-            className="arena-float-star s3"
-            animate={{ y: [0, -6, 0], x: [0, 6, 0], opacity: [0.35, 0.85, 0.35] }}
-            transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut', delay: 1.4 }}
-          >
-            ✧
-          </motion.div>
-        </div>
-
         {!isVictoryMoment &&
           items.map((item) => (
             <div
               key={item.id}
+              ref={(node) => setItemEl(item.id, node)}
               className={`falling-item kind-${item.kind} ${isBombMoment ? 'is-frozen' : ''}`}
               style={{ left: `${item.x}%`, top: `${item.y}%` }}
             >
@@ -313,7 +309,7 @@ export function CatchGame({
         )}
 
         {(isPlaying || phase === 'intro' || isBombMoment || isVictoryMoment) && (
-          <div className="player-bunny" style={{ left: `${playerX}%` }}>
+          <div ref={playerElRef} className="player-bunny" style={{ left: `${playerX}%` }}>
             {isBombMoment && (
               <div className="dizzy-stars">
                 {[0, 1, 2].map((i) => (
@@ -328,7 +324,7 @@ export function CatchGame({
                       opacity: { duration: 0.7, repeat: Infinity, delay: i * 0.15 },
                     }}
                   >
-                    <PixelSprite id="star" scale={2} />
+                    <PixelSprite id="heart" scale={2} />
                   </motion.div>
                 ))}
               </div>
@@ -429,6 +425,7 @@ export function CatchGame({
                 <CardSparkles />
                 <div className="intro-icons">
                   <PixelSprite id="heart" scale={3} />
+                  <PixelSprite id="chick" scale={3} />
                   <span className="intro-vs">vs</span>
                   <PixelSprite id="bomb" scale={3} />
                 </div>

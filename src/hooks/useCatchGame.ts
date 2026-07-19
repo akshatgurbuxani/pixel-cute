@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SpriteId } from '../data/sprites'
+import { LOVE_SPRITES } from '../data/sprites'
 
 export type GamePhase = 'intro' | 'playing' | 'bombHit' | 'gameOver' | 'victoryCelebration' | 'victory'
 
@@ -16,8 +17,6 @@ export interface FallingItem {
 }
 
 export const LOVE_GOAL = 10
-
-const LOVE_SPRITES: SpriteId[] = ['heart', 'flower', 'butterfly', 'star']
 
 function pickItem(loveCount: number): { sprite: SpriteId; kind: ItemKind } {
   if (Math.random() < Math.min(0.28 + loveCount * 0.006, 0.4)) {
@@ -61,8 +60,13 @@ export function useCatchGame(callbacks: GameCallbacks) {
     callbacks,
   })
 
+  const itemsLiveRef = useRef(refs.current.items)
+  const playerXLiveRef = useRef(50)
+
   refs.current.callbacks = callbacks
   refs.current.loveGoal = LOVE_GOAL
+  itemsLiveRef.current = refs.current.items
+  playerXLiveRef.current = refs.current.playerX
 
   const rollDeathLine = useCallback((): DeathLine => {
     const count = DEATH_LINES.length
@@ -110,6 +114,7 @@ export function useCatchGame(callbacks: GameCallbacks) {
     const line = rollWinLine()
     r.phase = 'victoryCelebration'
     r.items = []
+    itemsLiveRef.current = r.items
     r.callbacks.onVictory()
 
     setItems([])
@@ -128,6 +133,8 @@ export function useCatchGame(callbacks: GameCallbacks) {
     r.items = []
     r.playerX = 50
     r.spawnTimer = 0
+    playerXLiveRef.current = 50
+    itemsLiveRef.current = r.items
     setPhase('playing')
     setLoveCount(0)
     setPlayerX(50)
@@ -140,7 +147,8 @@ export function useCatchGame(callbacks: GameCallbacks) {
     const next = Math.max(8, Math.min(92, x))
     const delta = next - prev
     refs.current.playerX = next
-    setPlayerX(next)
+    playerXLiveRef.current = next
+    // Skip React state — CatchGame writes player position to the DOM each frame.
     if (Math.abs(delta) > 0.01) refs.current.callbacks.onMove?.(delta)
   }, [])
 
@@ -153,23 +161,30 @@ export function useCatchGame(callbacks: GameCallbacks) {
       const r = refs.current
 
       if (r.phase === 'playing') {
+        let structureChanged = false
+
         r.spawnTimer += dt
-        if (r.spawnTimer >= Math.max(32, 52 - r.loveCount * 0.8)) {
+        // Mobile-friendly: sparse spawns, hard cap on concurrent items
+        if (r.spawnTimer >= Math.max(64, 90 - r.loveCount * 0.4)) {
           r.spawnTimer = 0
-          const { sprite, kind } = pickItem(r.loveCount)
-          r.items.push({
-            id: r.nextId++,
-            x: 12 + Math.random() * 76,
-            y: -8,
-            sprite,
-            kind,
-            speed: 0.38 + Math.random() * 0.18,
-            wobble: (Math.random() - 0.5) * 0.25,
-          })
+          if (r.items.length < 3) {
+            const { sprite, kind } = pickItem(r.loveCount)
+            r.items.push({
+              id: r.nextId++,
+              x: 16 + Math.random() * 68,
+              y: -8,
+              sprite,
+              kind,
+              speed: 0.3 + Math.random() * 0.12,
+              wobble: (Math.random() - 0.5) * 0.15,
+            })
+            structureChanged = true
+          }
         }
 
         const catchY = 78
         const catchW = 11
+        const beforeCount = r.items.length
 
         r.items = r.items.filter((item) => {
           item.y += item.speed * 0.58 * dt
@@ -196,7 +211,13 @@ export function useCatchGame(callbacks: GameCallbacks) {
           return item.y <= 108
         })
 
-        setItems([...r.items])
+        if (structureChanged || r.items.length !== beforeCount) {
+          // Mount/unmount only — positions are painted via DOM refs in CatchGame.
+          itemsLiveRef.current = r.items
+          setItems(r.items.slice())
+        } else {
+          itemsLiveRef.current = r.items
+        }
       }
 
       r.raf = requestAnimationFrame(loop)
@@ -237,6 +258,8 @@ export function useCatchGame(callbacks: GameCallbacks) {
     loveCount,
     playerX,
     items,
+    itemsRef: itemsLiveRef,
+    playerXRef: playerXLiveRef,
     bombHit,
     deathLine,
     deathSeq,
