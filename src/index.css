@@ -48,6 +48,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   user-select: none;
 }
 
+/* Freeze decorative work while the game loop needs the frame budget. */
+.app.is-playing .pixel-bg *,
+.app.is-playing .header-star {
+  animation-play-state: paused;
+}
+
 /* ─── Cosmic animated sky ─── */
 
 .pixel-bg {
@@ -675,6 +681,31 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .arena-star, .arena-cosmos-band, .card-sparkle, .header-star, .arena-float-star,
   .catch-arena-shell, .arena-corner, .ambient-cutie.cutie-idle {
     animation: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .gradient-layer {
+    animation: none;
+    filter: blur(44px);
+    opacity: 0.42;
+  }
+
+  .gradient-shimmer,
+  .bg-orbit,
+  .bg-star:nth-child(n + 29),
+  .bg-sparkle:nth-child(n + 9),
+  .arena-star:nth-child(n + 13) {
+    display: none;
+  }
+
+  .catch-arena-shell,
+  .arena-cosmos-band {
+    animation: none;
+  }
+
+  .arena-cosmos-band {
+    filter: blur(10px);
   }
 }
 

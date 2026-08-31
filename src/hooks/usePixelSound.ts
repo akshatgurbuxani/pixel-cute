@@ -121,6 +121,12 @@ const BGM_HARM: BgmNote[] = [
 ]
 
 const BGM_LOOP_SEC = BGM_LOOP_BEATS * BGM_BEAT
+const BGM_SCORE: BgmNote[] = [
+  ...BGM_MELODY.map((note) => ({ ...note, vol: note.vol ?? BGM_MELODY_VOL })),
+  ...BGM_BASS,
+  // Keep a light arpeggio without scheduling dozens of concurrent nodes.
+  ...BGM_HARM.filter((_, index) => index % 4 === 0),
+]
 
 export function usePixelSound() {
   const ctxRef = useRef<AudioContext | null>(null)
@@ -130,7 +136,9 @@ export function usePixelSound() {
   const primedRef = useRef(false)
   const bgmMasterRef = useRef<GainNode | null>(null)
   const bgmRunningRef = useRef(false)
+  const bgmRequestedRef = useRef(false)
   const bgmLoopTimerRef = useRef<number | null>(null)
+  const bgmSourcesRef = useRef(new Set<OscillatorNode>())
 
   const ctx = useCallback(() => {
     if (!ctxRef.current) {
@@ -180,6 +188,8 @@ export function usePixelSound() {
       g.gain.exponentialRampToValueAtTime(0.001, when + dur)
       osc.connect(g)
       g.connect(getBgmMaster())
+      bgmSourcesRef.current.add(osc)
+      osc.addEventListener('ended', () => bgmSourcesRef.current.delete(osc), { once: true })
       osc.start(when)
       osc.stop(when + dur + 0.03)
     },
@@ -188,24 +198,32 @@ export function usePixelSound() {
 
   const scheduleBgmLoop = useCallback(
     (startAt: number) => {
-      const all: BgmNote[] = [
-        ...BGM_MELODY.map((n) => ({ ...n, vol: n.vol ?? BGM_MELODY_VOL })),
-        ...BGM_BASS,
-        ...BGM_HARM,
-      ]
-      for (const note of all) {
+      for (const note of BGM_SCORE) {
         scheduleBgmNote(startAt + note.beat * BGM_BEAT, note, BGM_MELODY_VOL)
       }
     },
     [scheduleBgmNote],
   )
 
-  const stopBgm = useCallback(() => {
+  const cancelBgmWork = useCallback(() => {
     bgmRunningRef.current = false
-    if (bgmLoopTimerRef.current) {
-      window.clearTimeout(bgmLoopTimerRef.current)
+    if (bgmLoopTimerRef.current !== null) {
+      window.clearInterval(bgmLoopTimerRef.current)
       bgmLoopTimerRef.current = null
     }
+    for (const source of bgmSourcesRef.current) {
+      try {
+        source.stop()
+      } catch {
+        // The source already ended.
+      }
+    }
+    bgmSourcesRef.current.clear()
+  }, [])
+
+  const stopBgm = useCallback(() => {
+    bgmRequestedRef.current = false
+    cancelBgmWork()
     const master = bgmMasterRef.current
     const c = ctxRef.current
     if (master && c) {
@@ -213,29 +231,23 @@ export function usePixelSound() {
       master.gain.setValueAtTime(master.gain.value, c.currentTime)
       master.gain.linearRampToValueAtTime(0, c.currentTime + 0.2)
     }
-  }, [])
-
-  const queueBgmLoop = useCallback(() => {
-    if (!bgmRunningRef.current) return
-    const c = ctx()
-    const startAt = c.currentTime + 0.06
-    scheduleBgmLoop(startAt)
-    bgmLoopTimerRef.current = window.setTimeout(() => {
-      queueBgmLoop()
-    }, BGM_LOOP_SEC * 1000 - 60)
-  }, [ctx, scheduleBgmLoop])
+  }, [cancelBgmWork])
 
   const startBgm = useCallback(async () => {
+    bgmRequestedRef.current = true
     await ensureRunning()
-    if (bgmRunningRef.current) return
+    if (!bgmRequestedRef.current || bgmRunningRef.current) return
     bgmRunningRef.current = true
     const c = ctx()
     const master = getBgmMaster()
     master.gain.cancelScheduledValues(c.currentTime)
     master.gain.setValueAtTime(0, c.currentTime)
     master.gain.linearRampToValueAtTime(BGM_VOLUME, c.currentTime + 0.35)
-    queueBgmLoop()
-  }, [ensureRunning, ctx, getBgmMaster, queueBgmLoop])
+    scheduleBgmLoop(c.currentTime + 0.06)
+    bgmLoopTimerRef.current = window.setInterval(() => {
+      if (bgmRunningRef.current) scheduleBgmLoop(ctx().currentTime + 0.06)
+    }, BGM_LOOP_SEC * 1000)
+  }, [ensureRunning, ctx, getBgmMaster, scheduleBgmLoop])
 
   const blip = useCallback(
     (freq: number, dur = 0.08, type: OscillatorType = 'square', vol = 0.06) => {
@@ -345,7 +357,7 @@ export function usePixelSound() {
         return
       }
 
-      void ensureRunning().then(() => {
+      const updateNodes = () => {
         startSlide()
         const slide = slideRef.current
         if (!slide) return
@@ -356,7 +368,10 @@ export function usePixelSound() {
         slide.source.playbackRate.setTargetAtTime(0.7 + Math.min(speed, 16) * 0.05, c.currentTime, 0.04)
         slide.filter.frequency.setTargetAtTime(650 + Math.min(speed, 16) * 30, c.currentTime, 0.04)
         slide.gain.gain.setTargetAtTime(Math.min(0.09, 0.03 + speed * 0.003), c.currentTime, 0.04)
-      })
+      }
+
+      if (ctx().state === 'running') updateNodes()
+      else void ensureRunning().then(updateNodes)
 
       if (slideIdleTimerRef.current) window.clearTimeout(slideIdleTimerRef.current)
       slideIdleTimerRef.current = window.setTimeout(() => stopSlide(), 80)
@@ -431,11 +446,21 @@ export function usePixelSound() {
 
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void ctxRef.current?.resume()
+      const audioContext = ctxRef.current
+      if (!audioContext) return
+      if (document.visibilityState === 'visible') {
+        if (bgmRequestedRef.current) void startBgm()
+        else void audioContext.resume()
+        return
+      }
+
+      // Do not queue multiple loops against a suspended AudioContext timeline.
+      cancelBgmWork()
+      void audioContext.suspend()
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [])
+  }, [cancelBgmWork, startBgm])
 
   useEffect(() => () => {
     stopSlide()

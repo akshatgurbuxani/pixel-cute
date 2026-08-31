@@ -21,6 +21,7 @@ export default function App() {
   )
 
   const game = useCatchGame(callbacks)
+  const { startGame } = game
   const isVictoryCelebration = game.phase === 'victoryCelebration'
   const isVictoryMoment = isVictoryCelebration || game.phase === 'victory'
   const isDeathMoment = game.phase === 'bombHit' || game.phase === 'gameOver'
@@ -30,8 +31,8 @@ export default function App() {
   const showCuties = game.phase === 'intro' || isVictoryMoment
 
   useEffect(() => {
-    if (game.phase === 'victoryCelebration') fireVictoryConfetti()
-    if (game.phase === 'victory') fireVictoryFinale()
+    if (game.phase === 'victoryCelebration') return fireVictoryConfetti()
+    if (game.phase === 'victory') return fireVictoryFinale()
   }, [game.phase])
 
   useEffect(() => {
@@ -49,8 +50,8 @@ export default function App() {
 
   const handleStart = useCallback(() => {
     void prime()
-    game.startGame()
-  }, [prime, game.startGame])
+    startGame()
+  }, [prime, startGame])
 
   const handlePrime = useCallback(() => {
     void prime()
@@ -60,6 +61,7 @@ export default function App() {
     <div
       className={[
         'app',
+        game.phase === 'playing' ? 'is-playing' : '',
         isVictoryMoment ? 'is-victory-blush' : '',
         isVictoryCelebration ? 'is-victory-celebration' : '',
         isDeathMoment ? 'is-death-moment' : '',
@@ -85,10 +87,8 @@ export default function App() {
         loveCount={game.loveCount}
         loveGoal={game.loveGoal}
         pinkIntensity={game.pinkIntensity}
-        playerX={game.playerX}
         items={game.items}
-        itemsRef={game.itemsRef}
-        playerXRef={game.playerXRef}
+        subscribeToFrames={game.subscribeToFrames}
         bombHit={game.bombHit}
         deathLine={game.deathLine}
         deathSeq={game.deathSeq}
