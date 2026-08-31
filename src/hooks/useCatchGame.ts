@@ -1,32 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { SpriteId } from '../data/sprites'
-import { LOVE_SPRITES } from '../data/sprites'
+import {
+  advanceGame,
+  clampPlayerX,
+  createGameEngineState,
+  GAME_RULES,
+  type FallingItem,
+  type GameEngineState,
+} from '../game/catchGameEngine'
 
-export type GamePhase = 'intro' | 'playing' | 'bombHit' | 'gameOver' | 'victoryCelebration' | 'victory'
+export type { FallingItem, ItemKind } from '../game/catchGameEngine'
 
-export type ItemKind = 'love' | 'bomb'
-
-export interface FallingItem {
-  id: number
-  x: number
-  y: number
-  sprite: SpriteId
-  kind: ItemKind
-  speed: number
-  wobble: number
-}
-
-export const LOVE_GOAL = 10
-
-function pickItem(loveCount: number): { sprite: SpriteId; kind: ItemKind } {
-  if (Math.random() < Math.min(0.28 + loveCount * 0.006, 0.4)) {
-    return { sprite: 'bomb', kind: 'bomb' }
-  }
-  return {
-    sprite: LOVE_SPRITES[Math.floor(Math.random() * LOVE_SPRITES.length)],
-    kind: 'love',
-  }
-}
+export type GamePhase =
+  | 'intro'
+  | 'playing'
+  | 'bombHit'
+  | 'gameOver'
+  | 'victoryCelebration'
+  | 'victory'
 
 interface GameCallbacks {
   onCatchLove: () => void
@@ -35,240 +25,166 @@ interface GameCallbacks {
   onMove?: (deltaX: number) => void
 }
 
+export interface GameFrame {
+  items: readonly FallingItem[]
+  playerX: number
+}
+
+type FrameListener = (frame: GameFrame) => void
+
+const BOMB_REVEAL_DELAY_MS = 1_500
+const VICTORY_REVEAL_DELAY_MS = 3_800
+
+function differentRandomLine<T>(lines: readonly T[], previousIndex: number): [T, number] {
+  if (lines.length === 1) return [lines[0], 0]
+
+  let index = Math.floor(Math.random() * lines.length)
+  while (index === previousIndex) index = Math.floor(Math.random() * lines.length)
+  return [lines[index], index]
+}
+
 export function useCatchGame(callbacks: GameCallbacks) {
   const [phase, setPhase] = useState<GamePhase>('intro')
   const [loveCount, setLoveCount] = useState(0)
-  const [playerX, setPlayerX] = useState(50)
   const [items, setItems] = useState<FallingItem[]>([])
   const [bombHit, setBombHit] = useState<{ x: number; y: number } | null>(null)
   const [deathLine, setDeathLine] = useState<DeathLine>(DEATH_LINES[0])
   const [deathSeq, setDeathSeq] = useState(0)
   const [winLine, setWinLine] = useState<WinLine>(WIN_LINES[0])
   const [winSeq, setWinSeq] = useState(0)
+
+  const engineRef = useRef<GameEngineState>(createGameEngineState())
+  const phaseRef = useRef<GamePhase>('intro')
+  const callbacksRef = useRef(callbacks)
+  const frameListenerRef = useRef<FrameListener | null>(null)
   const lastDeathIndexRef = useRef(-1)
   const lastWinIndexRef = useRef(-1)
 
-  const refs = useRef({
-    phase: 'intro' as GamePhase,
-    playerX: 50,
-    items: [] as FallingItem[],
-    loveCount: 0,
-    loveGoal: LOVE_GOAL,
-    nextId: 0,
-    spawnTimer: 0,
-    raf: 0,
-    callbacks,
-  })
+  useEffect(() => {
+    callbacksRef.current = callbacks
+  }, [callbacks])
 
-  const itemsLiveRef = useRef(refs.current.items)
-  const playerXLiveRef = useRef(50)
-
-  refs.current.callbacks = callbacks
-  refs.current.loveGoal = LOVE_GOAL
-  itemsLiveRef.current = refs.current.items
-  playerXLiveRef.current = refs.current.playerX
-
-  const rollDeathLine = useCallback((): DeathLine => {
-    const count = DEATH_LINES.length
-    if (count <= 1) return DEATH_LINES[0]
-    let idx = Math.floor(Math.random() * count)
-    while (idx === lastDeathIndexRef.current) {
-      idx = Math.floor(Math.random() * count)
-    }
-    lastDeathIndexRef.current = idx
-    return DEATH_LINES[idx]
+  const publishPhase = useCallback((nextPhase: GamePhase) => {
+    phaseRef.current = nextPhase
+    setPhase(nextPhase)
   }, [])
 
-  const rollWinLine = useCallback((): WinLine => {
-    const count = WIN_LINES.length
-    if (count <= 1) return WIN_LINES[0]
-    let idx = Math.floor(Math.random() * count)
-    while (idx === lastWinIndexRef.current) {
-      idx = Math.floor(Math.random() * count)
-    }
-    lastWinIndexRef.current = idx
-    return WIN_LINES[idx]
-  }, [])
+  const triggerBombDeath = useCallback((item: FallingItem) => {
+    if (phaseRef.current !== 'playing') return
 
-  const triggerBombDeath = useCallback(
-    (x: number, y: number) => {
-      const r = refs.current
-      if (r.phase !== 'playing') return
-
-      const line = rollDeathLine()
-      r.phase = 'bombHit'
-      r.callbacks.onBomb()
-
-      setBombHit({ x, y })
-      setDeathLine(line)
-      setDeathSeq((n) => n + 1)
-      setPhase('bombHit')
-    },
-    [rollDeathLine],
-  )
+    const [line, index] = differentRandomLine(DEATH_LINES, lastDeathIndexRef.current)
+    lastDeathIndexRef.current = index
+    publishPhase('bombHit')
+    callbacksRef.current.onBomb()
+    setBombHit({ x: item.x, y: item.y })
+    setDeathLine(line)
+    setDeathSeq((sequence) => sequence + 1)
+  }, [publishPhase])
 
   const triggerVictory = useCallback(() => {
-    const r = refs.current
-    if (r.phase !== 'playing') return
+    if (phaseRef.current !== 'playing') return
 
-    const line = rollWinLine()
-    r.phase = 'victoryCelebration'
-    r.items = []
-    itemsLiveRef.current = r.items
-    r.callbacks.onVictory()
-
+    const [line, index] = differentRandomLine(WIN_LINES, lastWinIndexRef.current)
+    lastWinIndexRef.current = index
+    publishPhase('victoryCelebration')
+    callbacksRef.current.onVictory()
     setItems([])
     setWinLine(line)
-    setWinSeq((n) => n + 1)
-    setPhase('victoryCelebration')
-  }, [rollWinLine])
+    setWinSeq((sequence) => sequence + 1)
+  }, [publishPhase])
 
-  const pinkIntensity = Math.min(loveCount / LOVE_GOAL, 1)
+  const subscribeToFrames = useCallback((listener: FrameListener) => {
+    frameListenerRef.current = listener
+    listener({ items: engineRef.current.items, playerX: engineRef.current.playerX })
 
-  const startGame = useCallback(() => {
-    const r = refs.current
-    r.phase = 'playing'
-    r.loveCount = 0
-    r.loveGoal = LOVE_GOAL
-    r.items = []
-    r.playerX = 50
-    r.spawnTimer = 0
-    playerXLiveRef.current = 50
-    itemsLiveRef.current = r.items
-    setPhase('playing')
-    setLoveCount(0)
-    setPlayerX(50)
-    setItems([])
-    setBombHit(null)
+    return () => {
+      if (frameListenerRef.current === listener) frameListenerRef.current = null
+    }
   }, [])
 
+  const startGame = useCallback(() => {
+    const nextEngine = createGameEngineState()
+    engineRef.current = nextEngine
+    publishPhase('playing')
+    setLoveCount(0)
+    setItems([])
+    setBombHit(null)
+    frameListenerRef.current?.({ items: nextEngine.items, playerX: nextEngine.playerX })
+  }, [publishPhase])
+
   const movePlayer = useCallback((x: number) => {
-    const prev = refs.current.playerX
-    const next = Math.max(8, Math.min(92, x))
-    const delta = next - prev
-    refs.current.playerX = next
-    playerXLiveRef.current = next
-    // Skip React state — CatchGame writes player position to the DOM each frame.
-    if (Math.abs(delta) > 0.01) refs.current.callbacks.onMove?.(delta)
+    if (phaseRef.current !== 'playing') return
+
+    const engine = engineRef.current
+    const nextX = clampPlayerX(x)
+    const deltaX = nextX - engine.playerX
+    engine.playerX = nextX
+    frameListenerRef.current?.({ items: engine.items, playerX: nextX })
+    if (Math.abs(deltaX) > 0.01) callbacksRef.current.onMove?.(deltaX)
   }, [])
 
   useEffect(() => {
-    let last = performance.now()
+    if (phase !== 'playing') return
 
-    const loop = (now: number) => {
-      const dt = Math.min((now - last) / 16.67, 2)
-      last = now
-      const r = refs.current
+    let animationFrame = 0
+    let previousTime = performance.now()
 
-      if (r.phase === 'playing') {
-        let structureChanged = false
+    const runFrame = (now: number) => {
+      if (phaseRef.current !== 'playing') return
 
-        r.spawnTimer += dt
-        // Mobile-friendly: sparse spawns, hard cap on concurrent items
-        if (r.spawnTimer >= Math.max(64, 90 - r.loveCount * 0.4)) {
-          r.spawnTimer = 0
-          if (r.items.length < 3) {
-            const { sprite, kind } = pickItem(r.loveCount)
-            r.items.push({
-              id: r.nextId++,
-              x: 16 + Math.random() * 68,
-              y: -8,
-              sprite,
-              kind,
-              speed: 0.3 + Math.random() * 0.12,
-              wobble: (Math.random() - 0.5) * 0.15,
-            })
-            structureChanged = true
-          }
-        }
+      const engine = engineRef.current
+      const result = advanceGame(engine, now - previousTime)
+      previousTime = now
+      frameListenerRef.current?.({ items: engine.items, playerX: engine.playerX })
 
-        const catchY = 78
-        const catchW = 11
-        const beforeCount = r.items.length
+      if (result.itemsChanged) setItems(engine.items.slice())
+      for (let caught = 0; caught < result.caughtLove; caught += 1) {
+        callbacksRef.current.onCatchLove()
+      }
+      if (result.caughtLove > 0) setLoveCount(engine.loveCount)
 
-        r.items = r.items.filter((item) => {
-          item.y += item.speed * 0.58 * dt
-          item.x += item.wobble * dt * 0.12
-
-          if (item.y >= catchY && item.y < catchY + 6) {
-            if (Math.abs(item.x - r.playerX) < catchW) {
-              if (item.kind === 'bomb') {
-                triggerBombDeath(item.x, item.y)
-                return false
-              }
-
-              r.loveCount += 1
-              r.callbacks.onCatchLove()
-              setLoveCount(r.loveCount)
-
-              if (r.loveCount >= r.loveGoal) {
-                triggerVictory()
-              }
-              return false
-            }
-          }
-
-          return item.y <= 108
-        })
-
-        if (structureChanged || r.items.length !== beforeCount) {
-          // Mount/unmount only — positions are painted via DOM refs in CatchGame.
-          itemsLiveRef.current = r.items
-          setItems(r.items.slice())
-        } else {
-          itemsLiveRef.current = r.items
-        }
+      if (result.bombHit) {
+        triggerBombDeath(result.bombHit)
+        return
+      }
+      if (result.won) {
+        triggerVictory()
+        return
       }
 
-      r.raf = requestAnimationFrame(loop)
+      animationFrame = requestAnimationFrame(runFrame)
     }
 
-    refs.current.raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(refs.current.raf)
-  }, [triggerBombDeath, triggerVictory])
+    animationFrame = requestAnimationFrame(runFrame)
+    return () => cancelAnimationFrame(animationFrame)
+  }, [phase, triggerBombDeath, triggerVictory])
 
   useEffect(() => {
     if (phase !== 'bombHit') return
-    const timer = window.setTimeout(() => {
-      refs.current.phase = 'gameOver'
-      setPhase('gameOver')
-    }, 1500)
+    const timer = window.setTimeout(() => publishPhase('gameOver'), BOMB_REVEAL_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [phase])
-
-  // backup win trigger — catches stale loop / HMR edge cases
-  useEffect(() => {
-    if (phase !== 'playing' || loveCount < LOVE_GOAL) return
-    if (refs.current.phase !== 'playing') return
-    triggerVictory()
-  }, [phase, loveCount, triggerVictory])
+  }, [phase, publishPhase])
 
   useEffect(() => {
     if (phase !== 'victoryCelebration') return
-    const timer = window.setTimeout(() => {
-      refs.current.phase = 'victory'
-      setPhase('victory')
-      setItems([])
-    }, 3800)
+    const timer = window.setTimeout(() => publishPhase('victory'), VICTORY_REVEAL_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [phase])
+  }, [phase, publishPhase])
 
   return {
     phase,
     loveCount,
-    playerX,
     items,
-    itemsRef: itemsLiveRef,
-    playerXRef: playerXLiveRef,
     bombHit,
     deathLine,
     deathSeq,
     winLine,
     winSeq,
-    pinkIntensity,
-    loveGoal: LOVE_GOAL,
+    pinkIntensity: Math.min(loveCount / GAME_RULES.loveGoal, 1),
+    loveGoal: GAME_RULES.loveGoal,
     startGame,
     movePlayer,
+    subscribeToFrames,
   }
 }
 

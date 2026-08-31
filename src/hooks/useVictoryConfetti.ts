@@ -2,77 +2,70 @@ import confetti from 'canvas-confetti'
 
 const PINK_COLORS = ['#ff6eb4', '#ff9ecd', '#ff4d8d', '#ffd1e8', '#ffb6d9', '#ffe566', '#fff5f8']
 const GOLD_COLORS = ['#ffe566', '#ffd93d', '#ffb703', '#fff8dc']
+const fireConfetti = confetti.create(undefined, { resize: true, useWorker: true })
 
-function burst(opts: confetti.Options) {
-  confetti({ disableForReducedMotion: true, zIndex: 2000, ...opts })
+type Cleanup = () => void
+
+function burst(options: confetti.Options) {
+  void fireConfetti({
+    disableForReducedMotion: true,
+    zIndex: 2_000,
+    ...options,
+  })
 }
 
-export function fireVictoryConfetti() {
-  // Big center pop
+function after(delayMs: number, callback: () => void): Cleanup {
+  const timer = window.setTimeout(callback, delayMs)
+  return () => window.clearTimeout(timer)
+}
+
+export function fireVictoryConfetti(): Cleanup {
+  const compactScreen = window.matchMedia('(max-width: 600px)').matches
+  const scale = compactScreen ? 0.55 : 1
+
   burst({
-    particleCount: 140,
+    particleCount: Math.round(90 * scale),
     spread: 100,
-    startVelocity: 48,
-    scalar: 1.15,
+    startVelocity: 42,
+    ticks: 100,
+    scalar: 1,
     colors: PINK_COLORS,
     origin: { x: 0.5, y: 0.58 },
   })
 
-  burst({
-    particleCount: 60,
-    spread: 360,
-    startVelocity: 26,
-    ticks: 80,
-    scalar: 0.9,
-    colors: GOLD_COLORS,
-    origin: { x: 0.5, y: 0.62 },
+  const cancelSideBurst = after(220, () => {
+    const particleCount = Math.round(40 * scale)
+    burst({ particleCount, angle: 55, spread: 58, startVelocity: 44, origin: { x: 0, y: 0.68 }, colors: PINK_COLORS })
+    burst({ particleCount, angle: 125, spread: 58, startVelocity: 44, origin: { x: 1, y: 0.68 }, colors: GOLD_COLORS })
   })
 
-  window.setTimeout(() => {
-    burst({ particleCount: 90, angle: 55, spread: 62, startVelocity: 52, origin: { x: 0, y: 0.68 }, colors: PINK_COLORS })
-    burst({ particleCount: 90, angle: 125, spread: 62, startVelocity: 52, origin: { x: 1, y: 0.68 }, colors: PINK_COLORS })
-  }, 180)
-
-  window.setTimeout(() => {
-    burst({ particleCount: 100, spread: 120, startVelocity: 42, origin: { x: 0.5, y: 0.35 }, colors: [...PINK_COLORS, ...GOLD_COLORS] })
-  }, 420)
-
-  window.setTimeout(() => {
-    burst({ particleCount: 70, spread: 80, startVelocity: 36, scalar: 1.2, origin: { x: 0.5, y: 0.72 }, colors: PINK_COLORS })
-  }, 780)
-
-  // Sustained shower for celebration phase
-  const end = Date.now() + 2600
-  const shower = () => {
+  const cancelFinalBurst = after(620, () => {
     burst({
-      particleCount: 4,
-      angle: 58,
-      spread: 48,
-      startVelocity: 28,
-      origin: { x: Math.random() * 0.4 + 0.1, y: 0.55 },
-      colors: PINK_COLORS,
+      particleCount: Math.round(55 * scale),
+      spread: 110,
+      startVelocity: 34,
+      ticks: 90,
+      colors: [...PINK_COLORS, ...GOLD_COLORS],
+      origin: { x: 0.5, y: 0.42 },
     })
-    burst({
-      particleCount: 4,
-      angle: 122,
-      spread: 48,
-      startVelocity: 28,
-      origin: { x: Math.random() * 0.4 + 0.5, y: 0.55 },
-      colors: GOLD_COLORS,
-    })
-    if (Date.now() < end) requestAnimationFrame(shower)
+  })
+
+  return () => {
+    cancelSideBurst()
+    cancelFinalBurst()
   }
-  window.setTimeout(shower, 500)
 }
 
-export function fireVictoryFinale() {
+export function fireVictoryFinale(): Cleanup {
   burst({
-    particleCount: 120,
-    spread: 160,
-    startVelocity: 34,
+    particleCount: window.matchMedia('(max-width: 600px)').matches ? 55 : 90,
+    spread: 150,
+    startVelocity: 30,
     decay: 0.92,
-    scalar: 1.1,
+    scalar: 1,
     colors: [...PINK_COLORS, ...GOLD_COLORS],
     origin: { x: 0.5, y: 0.5 },
   })
+
+  return () => undefined
 }

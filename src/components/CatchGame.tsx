@@ -6,17 +6,20 @@ import { NudgeButton, PixelButton } from './PixelButton'
 import { ArenaDecor } from './ArenaDecor'
 import { CardSparkles } from './CardSparkles'
 import { APP_COPY } from '../data/sprites'
-import { GAME_TIPS, type FallingItem, type GamePhase } from '../hooks/useCatchGame'
+import {
+  GAME_TIPS,
+  type FallingItem,
+  type GameFrame,
+  type GamePhase,
+} from '../hooks/useCatchGame'
 
 interface Props {
   phase: GamePhase
   loveCount: number
   loveGoal: number
   pinkIntensity: number
-  playerX: number
   items: FallingItem[]
-  itemsRef: React.MutableRefObject<FallingItem[]>
-  playerXRef: React.MutableRefObject<number>
+  subscribeToFrames: (listener: (frame: GameFrame) => void) => () => void
   bombHit: { x: number; y: number } | null
   deathLine: { bubble: string; title: string; sub: string }
   deathSeq: number
@@ -56,10 +59,8 @@ export function CatchGame({
   loveCount,
   loveGoal,
   pinkIntensity,
-  playerX,
   items,
-  itemsRef,
-  playerXRef,
+  subscribeToFrames,
   bombHit,
   deathLine,
   deathSeq,
@@ -75,19 +76,18 @@ export function CatchGame({
   const playerElRef = useRef<HTMLDivElement>(null)
   const itemElsRef = useRef(new Map<number, HTMLDivElement>())
   const dragPointerRef = useRef<number | null>(null)
+  const playerXRef = useRef(50)
   const isPlaying = phase === 'playing'
   const isBombMoment = phase === 'bombHit' || phase === 'gameOver'
   const isVictoryMoment = phase === 'victoryCelebration' || phase === 'victory'
   const isVictoryCelebration = phase === 'victoryCelebration'
   const lovePct = (loveCount / loveGoal) * 100
 
-  // Paint live positions without React re-renders (mobile killers).
+  // The engine owns the only animation loop and publishes coordinates here.
   useEffect(() => {
-    if (!isPlaying && phase !== 'intro' && !isBombMoment && !isVictoryMoment) return
-
-    let raf = 0
-    const sync = () => {
-      for (const item of itemsRef.current) {
+    return subscribeToFrames(({ items: liveItems, playerX }) => {
+      playerXRef.current = playerX
+      for (const item of liveItems) {
         const el = itemElsRef.current.get(item.id)
         if (el) {
           el.style.left = `${item.x}%`
@@ -95,13 +95,10 @@ export function CatchGame({
         }
       }
       if (playerElRef.current) {
-        playerElRef.current.style.left = `${playerXRef.current}%`
+        playerElRef.current.style.left = `${playerX}%`
       }
-      raf = requestAnimationFrame(sync)
-    }
-    raf = requestAnimationFrame(sync)
-    return () => cancelAnimationFrame(raf)
-  }, [isPlaying, phase, isBombMoment, isVictoryMoment, itemsRef, playerXRef])
+    })
+  }, [subscribeToFrames])
 
   const setItemEl = useCallback((id: number, node: HTMLDivElement | null) => {
     if (node) itemElsRef.current.set(id, node)
@@ -155,7 +152,7 @@ export function CatchGame({
       onPrime?.()
       onMove(playerXRef.current + dir * 10)
     },
-    [isPlaying, playerXRef, onMove, onPrime],
+    [isPlaying, onMove, onPrime],
   )
 
   const arenaClass = [
@@ -309,7 +306,7 @@ export function CatchGame({
         )}
 
         {(isPlaying || phase === 'intro' || isBombMoment || isVictoryMoment) && (
-          <div ref={playerElRef} className="player-bunny" style={{ left: `${playerX}%` }}>
+          <div ref={playerElRef} className="player-bunny" style={{ left: '50%' }}>
             {isBombMoment && (
               <div className="dizzy-stars">
                 {[0, 1, 2].map((i) => (
